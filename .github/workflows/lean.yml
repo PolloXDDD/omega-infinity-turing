@@ -1,0 +1,23 @@
+name: Lean conditional verification
+on:
+  push:
+    paths:
+      - 'lean/**'
+      - '.github/workflows/lean.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-conditional-theorems:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Download pinned official Lean toolchain
+        run: |
+          curl --fail --location --retry 3 https://github.com/leanprover/lean4/releases/download/v4.19.0/lean-4.19.0-linux.tar.zst -o "$RUNNER_TEMP/omega-lean.tar.zst"
+          tar --zstd -xf "$RUNNER_TEMP/omega-lean.tar.zst" -C "$RUNNER_TEMP"
+      - name: Check conditional proof and print theorem axioms
+        run: |
+          "$RUNNER_TEMP/lean-4.19.0-linux/bin/lean" --version
+          "$RUNNER_TEMP/lean-4.19.0-linux/bin/lean" -DwarningAsError=true lean/Omega.lean
