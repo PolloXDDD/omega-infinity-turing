@@ -141,3 +141,111 @@ end Omega
 #print axioms Omega.rejection_after_complete_selection
 #print axioms Omega.complete_of_global_minimum
 #print axioms Omega.AbstractTransfer.conditional_class_collapse
+
+
+namespace Omega.Constructions
+
+/-- A computable Boolean penalty, not an identified electrical dissipation. -/
+def penalty {n : Nat} (f : Omega.Circuit n) (x : Omega.Assignment n) : Nat :=
+  if Omega.eval f x = true then 0 else 1
+
+theorem penalty_strict_preference
+    {n : Nat} (f : Omega.Circuit n) (x y : Omega.Assignment n)
+    (hx : Omega.eval f x = true) (hy : Omega.eval f y ≠ true) :
+    penalty f x < penalty f y := by
+  simp [penalty, hx, hy]
+
+/-- The Boolean penalty's global minimum would give a satisfying assignment.
+This still takes global minimization as an argument. -/
+theorem penalty_minimizer_complete
+    {n : Nat} (f : Omega.Circuit n) (chosen : Omega.Assignment n)
+    (hmin : ∀ x, penalty f chosen ≤ penalty f x)
+    (hsat : Omega.Satisfiable f) :
+    Omega.eval f chosen = true := by
+  obtain ⟨x, hx⟩ := hsat
+  cases hc : Omega.eval f chosen with
+  | false =>
+    have bound := hmin x
+    simp [penalty, hx, hc] at bound
+  | true => rfl
+
+/-- Positive circuits contain variables, AND and OR, with no NOT gates. -/
+def Positive {n : Nat} : Omega.Circuit n → Prop
+  | .var _ => True
+  | .neg _ => False
+  | .conj a b => Positive a ∧ Positive b
+  | .disj a b => Positive a ∧ Positive b
+
+/-- An explicit selector for the positive-circuit subclass.
+No global minimizer or selector-completeness assumption is used. -/
+theorem positive_all_true
+    {n : Nat} (f : Omega.Circuit n) (h : Positive f) :
+    Omega.eval f (fun _ => true) = true := by
+  induction f with
+  | var i => rfl
+  | neg a ih => exact False.elim h
+  | conj a b iha ihb =>
+    obtain ⟨ha, hb⟩ := h
+    simp [Omega.eval, iha ha, ihb hb]
+  | disj a b iha ihb =>
+    obtain ⟨ha, hb⟩ := h
+    simp [Omega.eval, iha ha, ihb hb]
+
+theorem positive_penalty_minimum
+    {n : Nat} (f : Omega.Circuit n) (h : Positive f)
+    (x : Omega.Assignment n) :
+    penalty f (fun _ => true) ≤ penalty f x := by
+  have ht := positive_all_true f h
+  simp [penalty, ht]
+
+/-- No formula-independent assignment is complete for all one-input circuits.
+This only excludes selectors that ignore the circuit. -/
+theorem no_formula_independent_selector
+    (x : Omega.Assignment 1) :
+    ¬ (∀ f : Omega.Circuit 1,
+      Omega.Satisfiable f → Omega.eval f x = true) := by
+  intro complete
+  have yes : Omega.Satisfiable Omega.firstInput :=
+    ⟨fun _ => true, rfl⟩
+  have no : Omega.Satisfiable (.neg Omega.firstInput) :=
+    ⟨fun _ => false, rfl⟩
+  have hyes := complete Omega.firstInput yes
+  have hno := complete (.neg Omega.firstInput) no
+  change x ⟨0, by decide⟩ = true at hyes
+  change (!(x ⟨0, by decide⟩)) = true at hno
+  rw [hyes] at hno
+  cases hno
+
+/-- A fixed action shared by F=x and F=NOT x cannot strictly prefer all
+satisfying states for both. This is a necessary feedback condition, not
+a refutation of a formula-dependent physical action. -/
+theorem no_formula_independent_action_preference
+    {State : Type}
+    (tap : State → Omega.Assignment 1)
+    (action : State → Nat)
+    (s0 s1 : State)
+    (zero : tap s0 ⟨0, by decide⟩ = false)
+    (one : tap s1 ⟨0, by decide⟩ = true) :
+    ¬ (∀ f : Omega.Circuit 1, ∀ s t : State,
+      Omega.eval f (tap s) = true →
+      Omega.eval f (tap t) ≠ true →
+      action s < action t) := by
+  intro preference
+  have forward : action s1 < action s0 :=
+    preference Omega.firstInput s1 s0
+      (by simpa [Omega.eval, Omega.firstInput] using one)
+      (by simp [Omega.eval, Omega.firstInput, zero])
+  have backward : action s0 < action s1 :=
+    preference (.neg Omega.firstInput) s0 s1
+      (by simp [Omega.eval, Omega.firstInput, zero])
+      (by simp [Omega.eval, Omega.firstInput, one])
+  exact (Nat.lt_irrefl (action s1)) (Nat.lt_trans forward backward)
+
+end Omega.Constructions
+
+#print axioms Omega.Constructions.penalty_strict_preference
+#print axioms Omega.Constructions.penalty_minimizer_complete
+#print axioms Omega.Constructions.positive_all_true
+#print axioms Omega.Constructions.positive_penalty_minimum
+#print axioms Omega.Constructions.no_formula_independent_selector
+#print axioms Omega.Constructions.no_formula_independent_action_preference
