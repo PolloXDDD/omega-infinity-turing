@@ -233,12 +233,23 @@ theorem no_formula_independent_action_preference
   intro preference
   have forward : action s1 < action s0 :=
     preference Omega.firstInput s1 s0
-      (by simpa [Omega.eval, Omega.firstInput] using one)
-      (by simp [Omega.eval, Omega.firstInput, zero])
+      (by
+        change tap s1 ⟨0, by decide⟩ = true
+        exact one)
+      (by
+        change tap s0 ⟨0, by decide⟩ ≠ true
+        rw [zero]
+        decide)
   have backward : action s0 < action s1 :=
     preference (.neg Omega.firstInput) s0 s1
-      (by simp [Omega.eval, Omega.firstInput, zero])
-      (by simp [Omega.eval, Omega.firstInput, one])
+      (by
+        change (!(tap s0 ⟨0, by decide⟩)) = true
+        rw [zero]
+        rfl)
+      (by
+        change (!(tap s1 ⟨0, by decide⟩)) ≠ true
+        rw [one]
+        decide)
   exact (Nat.lt_irrefl (action s1)) (Nat.lt_trans forward backward)
 
 end Omega.Constructions
