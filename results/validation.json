@@ -1,0 +1,63 @@
+{
+  "assertions": 188,
+  "chains": [
+    {
+      "gates": 9,
+      "n": 10
+    },
+    {
+      "gates": 19,
+      "n": 20
+    },
+    {
+      "gates": 49,
+      "n": 50
+    },
+    {
+      "gates": 99,
+      "n": 100
+    }
+  ],
+  "grids": [
+    {
+      "edges": 4,
+      "eliminationUpdates": 0,
+      "free": 0,
+      "m": 1,
+      "nodes": 4
+    },
+    {
+      "edges": 12,
+      "eliminationUpdates": 5,
+      "free": 3,
+      "m": 2,
+      "nodes": 9
+    },
+    {
+      "edges": 24,
+      "eliminationUpdates": 101,
+      "free": 8,
+      "m": 3,
+      "nodes": 16
+    },
+    {
+      "edges": 40,
+      "eliminationUpdates": 479,
+      "free": 15,
+      "m": 4,
+      "nodes": 25
+    },
+    {
+      "edges": 60,
+      "eliminationUpdates": 1514,
+      "free": 24,
+      "m": 5,
+      "nodes": 36
+    }
+  ],
+  "originalBenchmark": {
+    "assignments": 8,
+    "satisfying": 5
+  },
+  "scope": "Exact DC and digital unit tests; no RTL co-simulation or global SAT-selection benchmark."
+}

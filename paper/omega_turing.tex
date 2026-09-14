@@ -1,0 +1,308 @@
+\documentclass[11pt]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{parskip}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\newtheorem{definition}{Definition}
+\newcommand{\PP}{\mathbf{P}}
+\newcommand{\NP}{\mathbf{NP}}
+\title{$P=NP$ and the OMEGA INFINITY Processor:\\
+Exact Conductive-GRID Simulation and a Conditional Transfer Theorem}
+\author{Research draft for the OMEGA INFINITY KAORU project}
+\date{September 14, 2026}
+\begin{document}
+\maketitle
+\begin{abstract}
+We develop a deterministic, finite-description simulation layer for the
+conductive-GRID architecture introduced by Kaoru Aguilera Katayama.
+For a specified configuration of positive rational conductances and
+specified rational boundary data, the node potentials, thresholded taps,
+and Boolean circuit output are computable exactly in polynomial bit
+complexity. The implementation uses arbitrary-precision rational
+arithmetic and validates Kirchhoff residuals exactly. We prove a
+conditional transfer theorem: a uniform polynomial-time configuration
+selector preserving the architecture's satisfiability semantics would
+yield a deterministic polynomial-time algorithm for Circuit-SAT and
+therefore $P=NP$. The configuration selector is an explicit outstanding
+construction. This draft proves the fixed-configuration simulation
+result, not an unconditional resolution of $P$ versus $NP$.
+\end{abstract}
+
+\section{Source architecture and translation target}
+The primary source is the original conductive-GRID manuscript, available
+as the uploaded TeX source in this repository \cite{gridpaper}. Its
+electrical equation is $\mathbf G\mathbf V=\mathbf I$; its tap map uses a
+strict voltage threshold; and its selection equation is
+$s^\ast\in\arg\min_s\mathcal A_F(s)$.
+We preserve these three separate mathematical objects.
+
+The original programmable RTL \cite{gridrtl} accepts digitized
+\texttt{grid\_taps} and evaluates a gate array. The Tiny Tapeout RTL
+\cite{beolrtl} uses a different opcode assignment. The implementation
+supports both Boolean gate tables on topologically ordered circuits.
+It is a functional combinational model, not a cycle-accurate model of
+register programming, invalid addresses, reset, or analog transistor
+behavior.
+
+Let $n$ be the number of Boolean taps, $g$ the circuit gate count, and $m$
+the lattice order. Following the source's explicit vertex definition,
+the grid has
+\[
+K=(m+1)^2,\qquad E=2m(m+1).
+\]
+Thus $m$, $K$, and $n$ are separate input parameters. If every edge has
+two conductance states, an explicit configuration contains $E$ bits and
+the configuration space has $2^E$ elements. Computing one configuration's
+electrical solution does not require storing this state space.
+
+\section{Electrical equations from local conservation}
+An undirected edge $\{u,v\}$ has specified conductance $c_{uv}>0$.
+Ohm's law gives $I_{uv}=c_{uv}(v_u-v_v)$.
+Partition the vertices into fixed-potential boundary nodes $D$ and free
+nodes $U$. Prescribe $v_D=d$ and current injections $j_U$.
+Kirchhoff's law at each free vertex is
+\[
+\sum_{w:\{u,w\}\in E}c_{uw}(v_u-v_w)=j_u.
+\]
+Let $L$ be the weighted graph Laplacian. Eliminating prescribed voltages
+yields the central system
+\begin{equation}
+\boxed{A v_U=b,\qquad A=L_{UU},\quad b=j_U-L_{UD}d.}
+\label{eq:dc}
+\end{equation}
+The boundary specification is part of the input. In particular, an
+electrical return terminal or load must be specified when required by
+the intended experiment; the simulator does not infer it from a Boolean
+circuit diagram.
+
+\begin{proposition}[Unique fixed-configuration solution]
+Suppose every connected component containing a free node is connected
+to a fixed-potential node. Then $A$ is positive definite and
+Equation~\eqref{eq:dc} has a unique solution.
+\end{proposition}
+\begin{proof}
+For any vector $z_U$, extend it by zero on $D$. Then
+$z_U^\top A z_U=\sum_{\{u,v\}}c_{uv}(z_u-z_v)^2$.
+Vanishing requires $z$ constant on each connected component. A component
+with a prescribed node has constant zero. Hence a nonzero $z_U$ gives
+strictly positive quadratic form.
+\end{proof}
+
+Define the reduced potential
+$\Phi(v_U)=\frac12v_U^\top A v_U-b^\top v_U$.
+Its gradient is $Av_U-b$, so its unique global minimizer is the solution
+of Equation~\eqref{eq:dc}. With zero free-node injections, this also
+minimizes dissipated power over voltages satisfying the fixed boundary
+values. With injections present, the linear source term in $\Phi$ is
+essential. The total resistor power is
+$P(v)=\sum_{\{u,v\}}c_{uv}(v_u-v_v)^2$.
+
+This variational minimization varies node voltages with conductances
+fixed. The source manuscript's minimization over configurations varies
+the conductances themselves. The two domains remain explicit in the
+simulation interface.
+
+\section{Exact deterministic algorithm}
+All numerical inputs are rational numbers encoded by binary integers.
+For a tap at vertex $t_i$, define
+\begin{equation}
+x_i=\mathbf1[v_{t_i}>\theta_i].
+\label{eq:tap}
+\end{equation}
+Equality returns zero, matching the strict inequality in the source.
+The current implementation takes one common threshold; distinct
+thresholds require only independent rational comparisons.
+
+\begin{algorithm}
+\caption{Exact fixed-configuration OMEGA simulation}
+\begin{algorithmic}[1]
+\Require Graph, positive rational conductances, boundary potentials,
+injections, tap indices, threshold, topological Boolean circuit $F$
+\Ensure Exact voltages, tap pattern $x$, and $F(x)$
+\State Assemble $A,b$ from Equation~\eqref{eq:dc}
+\State Solve $Av_U=b$ by rational Gaussian elimination with pivoting
+\State Restore prescribed boundary voltages
+\State Verify all free-node Kirchhoff residuals equal zero exactly
+\For{each tap $i$}
+\State $x_i\gets\mathbf1[v_{t_i}>\theta]$
+\EndFor
+\State Evaluate every Boolean gate once in topological order
+\State \Return $(v,x,F(x))$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{theorem}[Polynomial bit simulation]
+For valid boundary data as above, fixed-configuration OMEGA simulation
+is computable by a deterministic Turing machine in time polynomial
+in the total binary input length.
+\end{theorem}
+\begin{proof}
+Dense assembly uses polynomial space and polynomially many arithmetic
+operations. Gaussian elimination and back substitution use $O(K^3)$
+rational operations. To bound their bit cost, let $\ell$ be the total
+binary input length, including all rational coefficients and topology.
+Clear denominators using a product whose bit length is $O(\ell)$.
+The resulting integer system has entries with
+$O(\ell+\log K)$ bits. Determinants of its submatrices have
+$O(K(\ell+\log K))$ bits by the determinant expansion bound.
+Reduced elimination entries are ratios of such minors; their bit
+lengths, and the lengths of temporary products of a constant number of
+them, are polynomial. Greatest-common-divisor reduction and integer
+arithmetic take polynomial bit time. Therefore the concrete rational
+algorithm has polynomial bit complexity.
+
+Thresholds are compared by cross multiplication, also in polynomial
+bit time. The digital stage uses $g$ Boolean operations given direct
+access to a node array. A tape implementation may scan the polynomial
+size array for each operand. That introduces polynomial overhead, so
+the complete procedure is a deterministic polynomial-time Turing
+computation. No constant-time access to unbounded integers or arbitrary
+tape addresses is assumed.
+\end{proof}
+
+The implementation uses a dense matrix and is a reference exact
+algorithm, not a practical simulator of a 500-million-variable device.
+Its arithmetic-operation bound is cubic in $K$; the theorem establishes
+polynomiality rather than a linear-time bound. It outputs the equilibrium,
+not the entire continuous physical trajectory.
+
+\section{Transient interpretation and precision}
+Under an additional linear RC model with positive diagonal capacitance
+matrix $C_U$ and constant boundary data,
+\[
+C_U\dot v_U+Av_U=b.
+\]
+Let $e=v_U-v_U^\ast$ and
+$H=C_U^{-1/2}AC_U^{-1/2}$. Then
+\[
+\|C_U^{1/2}e(t)\|_2
+\leq e^{-\lambda_{\min}(H)t}\|C_U^{1/2}e(0)\|_2.
+\]
+This follows by diagonalizing the symmetric positive definite matrix
+$H$. It describes electrical relaxation for a fixed conductance
+configuration. A time-step simulator must additionally account for
+spectral scale, accuracy, and coefficient lengths.
+The present DC algorithm avoids simulating every transient step by
+solving directly for the limit.
+
+If all tap voltages are at distance at least $\delta>0$ from threshold,
+an approximation with coordinate error below $\delta$ preserves every
+tap bit. Exact rational comparison also handles threshold equality.
+Neither method supplies a rule for changes of discrete conductance
+configuration due to noise or feedback.
+
+\section{The global selector and the $P=NP$ transfer}
+\begin{definition}[Uniform configuration selector]
+A selector $S$ takes a circuit $F$ and returns a polynomial-length
+conductance configuration for a polynomial-size network compiled from
+$F$. Its runtime includes all searches, noise handling or deterministic
+substitutes, parameter construction, and configuration updates.
+\end{definition}
+
+\begin{theorem}[Conditional transfer to $P=NP$]
+Suppose there is a deterministic polynomial-time compiler producing
+valid rational networks and readout circuits from arbitrary Circuit-SAT
+instances. Suppose a deterministic polynomial-time selector $S$
+satisfies
+\[
+F\text{ satisfiable}\ \Longrightarrow\
+F\bigl(\tau_F(S(F))\bigr)=1.
+\]
+Then $P=NP$.
+\end{theorem}
+\begin{proof}
+Compile $F$, compute $S(F)$, solve its network by the preceding theorem,
+and evaluate $F$ on its tap pattern. On satisfiable inputs the selector
+property guarantees acceptance. On unsatisfiable inputs every Boolean
+pattern is rejected. Thus the algorithm decides Circuit-SAT in
+deterministic polynomial time. By NP-completeness every language in NP
+then belongs to P, and the reverse inclusion holds by definition.
+\end{proof}
+
+One sufficient route to the selector property is: the tap map covers
+all assignments; every satisfying configuration has strictly lower
+action than every rejecting configuration; and a deterministic
+polynomial-time algorithm returns an exact global action minimizer.
+These are explicit hypotheses, not steps implemented by calling
+\texttt{argmin}. For approximate minimization, a quantitative action
+gap and an accuracy guarantee smaller than that gap are needed.
+
+The current code computes $\tau_F(s)$ for supplied $s$ and evaluates
+$F(\tau_F(s))$. It returns \texttt{SAT\_WITNESS} on acceptance and
+\texttt{CANDIDATE\_REJECTED} otherwise. A rejected candidate is not an
+UNSAT certificate. A complete realization of $S$, including the
+formula-dependent feedback or boundary mechanism, remains outstanding.
+Consequently the preceding implication is conditional in this draft.
+
+\section{Reproducible validation}
+Run \texttt{node tests.cjs} with a Node.js runtime supporting BigInt.
+No external packages are used. The same source was executed in the
+session's V8 JavaScript runtime with an in-memory CommonJS adapter.
+All 188 assertions passed. There was no independent Verilog
+co-simulation, full hardware validation, or global SAT-selection test.
+
+Tests include both opcode tables (64 Boolean checks), an unequal
+conductance voltage divider with exact voltage $2/3$ and power $2/3$,
+threshold equality, floating-network rejection, invalid dependency
+rejection, and exact rational input validation.
+
+An independent family uses all left-boundary voltages equal to one and
+all right-boundary voltages equal to zero, with unit conductances.
+Its analytic solution is $v(x,y)=1-x/m$ and its power is $(m+1)/m$.
+These explicit test boundaries differ from the source's midpoint source;
+they validate the solver against a closed-form solution.
+
+\begin{center}
+\begin{tabular}{rrrr}
+\toprule
+$m$ & Nodes & Edges & Elimination updates\\
+\midrule
+1 & 4 & 4 & 0\\
+2 & 9 & 12 & 5\\
+3 & 16 & 24 & 101\\
+4 & 25 & 40 & 479\\
+5 & 36 & 60 & 1514\\
+\bottomrule
+\end{tabular}
+\end{center}
+An update counts one augmented-matrix entry update in elimination;
+it is neither a bit-operation count nor a runtime measurement.
+AND-chain tests use 10, 20, 50, and 100 inputs.
+The source benchmark $(a\land\neg b)\lor(b\oplus c)$ is checked on all
+eight assignments; direct evaluation accepts five of them.
+The small truth-table tests are verification fixtures, not the
+algorithm used to calculate network equilibrium.
+
+\section{Next mathematical construction}
+The next target is an explicit, formula-dependent law for configuration
+selection, together with a proof of termination, global acceptance on
+satisfiable instances, polynomial resource growth, and uniformity.
+The fixed-configuration electrical and digital layers now have a
+concrete exact implementation and a polynomial simulation theorem.
+The repository records the global selector as open rather than
+embedding an unimplemented oracle in the executable.
+
+\begin{thebibliography}{9}
+\bibitem{gridpaper}
+K. Aguilera Katayama,
+\emph{The OMEGA INFINITY KAORU Processor: A Conductive-GRID Architecture
+for Solving Circuit-SAT in Practical Constant Time}, supplied manuscript.
+Source file: \texttt{main - 2026-09-14T100658.720.tex};
+Git blob \texttt{492893c7444d8ee07caa6d8f20f4519b6532577e}.
+\bibitem{gridrtl}
+K. Aguilera Katayama, Original programmable GRID RTL.
+\url{https://github.com/PolloXDDD/Repository-The-OMEGA-INFINITY-KAORU-Processor}.
+Inspected source blob \texttt{512adb0f3fa87a9621bae70dfed1cfe2b6ff0836}.
+\bibitem{beolrtl}
+K. Aguilera Katayama, Tiny Tapeout OMEGA RTL.
+\url{https://github.com/PolloXDDD/ttsky-CRYPTOGRAPHY-DESTROYER-OMEGA-INFINITY}.
+Inspected source blob \texttt{ac6e2d89539b2821d9427ae66bba2b38f95701ee}.
+\end{thebibliography}
+\end{document}
